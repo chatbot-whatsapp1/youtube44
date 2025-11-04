@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 import requests
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 app = FastAPI()
 
@@ -12,7 +13,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-YOUTUBE_API_KEY = "SUA_API_KEY_AQUI"
+# Lê a chave da API do ambiente
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+
+def get_channel_id_from_handle(handle):
+    # Remove o @ se existir
+    handle = handle.replace("@", "")
+    url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q={handle}&key={YOUTUBE_API_KEY}"
+    data = requests.get(url).json()
+    if "items" in data and len(data["items"]) > 0:
+        return data["items"][0]["snippet"]["channelId"]
+    return None
 
 def extract_channel_id(channel_url):
     if "channel/" in channel_url:
@@ -24,9 +35,7 @@ def extract_channel_id(channel_url):
         return data["items"][0]["id"] if "items" in data else None
     elif "@" in channel_url:
         handle = channel_url.split("@")[1].split("/")[0]
-        url = f"https://www.googleapis.com/youtube/v3/channels?part=id&forUsername={handle}&key={YOUTUBE_API_KEY}"
-        data = requests.get(url).json()
-        return data["items"][0]["id"] if "items" in data else None
+        return get_channel_id_from_handle(handle)
     return None
 
 @app.get("/api/channel_stats")
@@ -36,7 +45,7 @@ def get_channel_stats(channel_url: str):
         return {"error": "URL inválida"}
 
     videos = []
-    url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={channel_id}&part=snippet,id&maxResults=20&order=date"
+    url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={channel_id}&part=snippet,id&maxResults=10&order=date"
     response = requests.get(url).json()
 
     for item in response.get("items", []):
